@@ -1,0 +1,167 @@
+---
+title: "MLHW1"
+author: "Qinyuan Xing"
+date: "2022/1/26"
+output:
+  pdf_document:
+    
+    toc: yes
+    toc_depth: '3'
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F, results = "markup", message = F)
+options(scientific=T, digits = 3) 
+```
+
+## Q1
+### (a)
+```{r}
+set.seed(111)
+d1 = data.frame(x1 = rnorm(100),x2 = rnorm(100,1,1),y="orange")
+d2 = data.frame(x1 = rnorm(100,1,1),x2 = rnorm(100),y="blue")
+d = rbind(d1,d2)
+library(ggplot2)
+p = ggplot(d,aes(x=x1,y = x2,color=y))
+p = p+geom_point()+scale_color_manual(values = c("orange"="orange","blue"="blue"))+labs(title = "x1 vs x2")+ theme(plot.title = element_text(hjust = 0.5),)
+p
+cat("\nThe blue and orange points mostly can be divided by a straight line from top right to bottom left.\n")
+```
+
+### (b)
+```{r}
+d$y  = ifelse(d$y=="orange",1,0)
+lmod = lm(y~.,d)
+predict(lmod)
+d$y = c(rep("orange",100),rep("blue",100))
+d$y_hat = ifelse(predict(lmod)>0.5,"orange","blue")
+fr = 1-sum(d$y==d$y_hat)/nrow(d)
+cat("\nThe False Rate is",fr,"which is a little high for applying.")
+```
+
+### (c)
+```{r}
+summary(lmod)
+intercept = (0.5-coef(lmod)[1])/coef(lmod)[3]
+slope = (-coef(lmod)[2])/coef(lmod)[3]
+p+geom_abline(intercept = intercept,slope = slope)
+cat("\nOn the left side of the boundary the points will be predicted orange.\nOn the right side the point will be predicted blue.\nThe plot shows that some points will be misclassified.\n")
+```
+
+### (d)
+```{r}
+library(class)
+knn_15 = knn(train = d[,1:2],test = d[,1:2],cl = d$y,k = 15)
+knn_15
+fr2 = 1-sum(d$y==knn_15)/nrow(d)
+cat("\nThe 15-n-n model has lower false rate compared with the linear regression.\n")
+```
+
+### (e)
+```{r}
+td = expand.grid(d$x1,d$x2)
+knn_15_2 = knn(train = d[,1:2],test = td[,1:2],cl = d$y,k = 15,prob = T)
+td$knn = knn_15_2
+td$knn_or_p = attr(knn_15_2,"prob")
+td$knn_or_p[td$knn=="blue"]=1-td$knn_or_p
+names(td)[1:2]=c("x1","x2")
+p+geom_contour(data = td,aes(x=x1,y=x2,z=knn_or_p),breaks = 0.5,inherit.aes = F,color="black")
+cat("The shape is closer to the real situation and the misclassification is less than the straight line.")
+```
+
+### (f)
+```{r}
+knn_1 = knn(train = d[,1:2],test = d[,1:2],cl = d$y,k = 1)
+knn_1
+fr3 = 1-sum(d$y==knn_1)/nrow(d)
+d$knn1 = knn_1
+cat("\nThe false rate is 0.\n")
+
+knn_1_2 = knn(train = d[,1:2],test = td[,1:2],cl = d$y,k = 1,prob = T)
+td$knn1 = knn_1_2
+td$knn1_or_p = attr(knn_1_2,"prob")
+td$knn1_or_p[td$knn1=="blue"]=1-td$knn1_or_p
+p+geom_contour(data = td,aes(x=x1,y=x2,z=knn1_or_p),breaks = 0.5,inherit.aes = F,color="black")
+cat("\nThe boundary is too complex, but there is no misclassification.\n")
+```
+
+### (g)
+The boundaries of linear regression and 15-nn is similar in shape.
+Linear boundary is a straight line but the 15-nn is a curve.
+The boundary of the 1-nn consists of several curves.
+
+We can see that the most simple linear model has the highest bias with lowest variance.
+The most complex model 1-nn has lowest bias but highest variance.
+
+Therefore I would like the 15-nn model with moderate bias and variance.
+
+### (h)
+```{r}
+set.seed(123)
+d3 = data.frame(x1 = rnorm(100,0,25),x2 = rnorm(100,1,25),y = "orange")
+d4 = data.frame(x1 = rnorm(100,1,25),x2 = rnorm(100,0,25),y = "blue")
+nd = rbind(d3,d4)
+p2 = ggplot(nd,aes(x=x1,y = x2,color=y))+geom_point()+scale_color_manual(values = c("orange"="orange","blue"="blue"))+labs(title = "x1 vs x2")+theme(plot.title = element_text(hjust = 0.5))
+p2
+cat("\nThe blue and orange points are mixed mostly and hard to be divided.\n")
+
+nd$y  = ifelse(nd$y=="orange",1,0)
+lmod2 = lm(y~.,nd)
+nd$y = c(rep("orange",100),rep("blue",100))
+nd$y_hat = ifelse(predict(lmod2)>0.5,"orange","blue")
+nfr = 1-sum(nd$y==nd$y_hat)/nrow(nd)
+cat("\nThe False Rate of LM is",nfr,"which is too high to apply.")
+
+intercept2 = (0.5-coef(lmod2)[1])/coef(lmod2)[3]
+slope2 = (-coef(lmod2)[2])/coef(lmod2)[3]
+p2+geom_abline(intercept = intercept2,slope = slope2)
+coef(lmod2)
+cat("\nOn the left side of the boundary the points will be predicted orange.\nOn the right side the point will be predicted blue.\nThe plot shows that many points will be misclassified.\n")
+
+nknn_15 = knn(train = nd[,1:2],test = nd[,1:2],cl = nd$y,k = 15)
+nfr2 = 1-sum(nd$y==nknn_15)/nrow(nd)
+cat("\nThe 15-n-n model has lower false rate compared with the linear regression.But it is still so high.\n")
+
+ntd = expand.grid(nd$x1,nd$x2)
+nknn_15_2 = knn(train = nd[,1:2],test = ntd[,1:2],cl = nd$y,k = 15,prob = T)
+ntd$knn = nknn_15_2
+ntd$knn_or_p = attr(nknn_15_2,"prob")
+ntd$knn_or_p[ntd$knn=="blue"]=1-ntd$knn_or_p
+names(ntd)[1:2]=c("x1","x2")
+p2+geom_contour(data = ntd,aes(x=x1,y=x2,z=knn_or_p),breaks = 0.5,inherit.aes = F,color="black")
+cat("The shape is hard to identify and the misclassification is less than the straight line.")
+
+nknn_1 = knn(train = nd[,1:2],test = nd[,1:2],cl = nd$y,k = 1)
+nfr3 = 1-sum(nd$y==nknn_1)/nrow(nd)
+cat("\nThe false rate is 0.\n")
+
+nknn_1_2 = knn(train = nd[,1:2],test = ntd[,1:2],cl = nd$y,k = 1,prob = T)
+ntd$knn1 = nknn_1_2
+ntd$knn1_or_p = attr(nknn_1_2,"prob")
+ntd$knn1_or_p[ntd$knn1=="blue"]=1-ntd$knn1_or_p
+p2+geom_contour(data = ntd,aes(x=x1,y=x2,z=knn1_or_p),breaks = 0.5,inherit.aes = F,color="black")
+cat("\nThe boundary is complex, but there is no misclassification.\n")
+```
+
+The boundary of LM is a straight line and the boundaries of the K-nn are both composed of several curves. LM and 15-NN both have too high bias so I would choose 1-NN as the best.
+
+### (i)
+
+The most important reason that I choose different methods is the data we generated are different.
+
+In the first data, the variance of the Normal distribution is 1 which is very small. So I can choose a 15-NN with small variance.
+
+In the second data, the variance of Normal is much higher. The method with small variance like LM and 15-NN would cause very high bias which is not acceptable. Therefore I choose the 1-NN with high variance and low bias.
+
+
+
+
+
+
+

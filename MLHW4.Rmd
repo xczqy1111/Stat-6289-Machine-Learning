@@ -1,0 +1,353 @@
+---
+title: "MLHW4"
+author: "Qinyuan Xing"
+date: "2022/3/9"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F, results = "markup", message = F)
+options(scientific=T, digits = 3) 
+```
+
+## Q1
+### (a)
+```{r}
+covid = data.frame(read.csv("E:\\2022 Spring\\R\\covid_data_pdb_v3.csv"))
+str(covid)
+# linear regression
+lmod = lm(high_community_level~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_under_5_ACS_14_18+pct_Pop_5_17_ACS_14_18+pct_Pop_25_44_ACS_14_18+pct_Pop_45_64_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Renter_Occp_HU_ACS_14_18+pct_Vacant_Units_ACS_14_18+pct_Mobile_Homes_ACS_14_18+pct_HHD_NoCompDevic_ACS_14_18+pct_HHD_No_Internet_ACS_14_18+pct_Hispanic_ACS_14_18+pct_NH_White_alone_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Schl_Enroll_3_4_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,covid)
+summary(lmod)
+predict(lmod)>0.5
+library(dplyr)
+covid2 = select(covid,c(pct_URBANIZED_AREA_POP_CEN_2010,pct_Males_ACS_14_18,pct_Pop_under_5_ACS_14_18,pct_Pop_5_17_ACS_14_18,pct_Pop_25_44_ACS_14_18,pct_Pop_45_64_ACS_14_18,pct_Pop_65plus_ACS_14_18,pct_Renter_Occp_HU_ACS_14_18,pct_Vacant_Units_ACS_14_18,pct_Mobile_Homes_ACS_14_18,pct_HHD_NoCompDevic_ACS_14_18,pct_HHD_No_Internet_ACS_14_18,pct_Hispanic_ACS_14_18,pct_NH_White_alone_ACS_14_18,pct_NH_Blk_alone_ACS_14_18,pct_Schl_Enroll_3_4_ACS_14_18,pct_Prs_Blw_Pov_Lev_ACS_14_18,high_community_level))
+library(caret)
+set.seed(123)
+folds = createFolds(covid2$high_community_level,k=10)
+lrcverr = c()
+for (i in 1:10) {
+  train = covid2[-folds[[i]],]
+  test = covid2[folds[[i]],]
+  cvlmod = lm(high_community_level~.,data=train)
+  lrcverr[i] = mean((test$high_community_level-(predict(cvlmod,test)>0.5))^2)
+}
+lr_error = mean(lrcverr)
+lr_error
+
+#logistic regression
+logit = glm(high_community_level~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_under_5_ACS_14_18+pct_Pop_5_17_ACS_14_18+pct_Pop_25_44_ACS_14_18+pct_Pop_45_64_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Renter_Occp_HU_ACS_14_18+pct_Vacant_Units_ACS_14_18+pct_Mobile_Homes_ACS_14_18+pct_HHD_NoCompDevic_ACS_14_18+pct_HHD_No_Internet_ACS_14_18+pct_Hispanic_ACS_14_18+pct_NH_White_alone_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Schl_Enroll_3_4_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,family = binomial(link = "logit"),covid)
+summary(logit)
+logcverr = c()
+for (i in 1:10) {
+  train = covid2[-folds[[i]],]
+  test = covid2[folds[[i]],]
+  cvmod = glm(high_community_level~.,family = binomial(link = "logit"),data=train)
+  logcverr[i] = mean((test$high_community_level-(predict(cvmod,test,type="response")>0.5))^2)
+}
+logit_error = mean(logcverr)
+logit_error
+
+# LDA
+library(MASS)
+ldamod = lda(high_community_level~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_under_5_ACS_14_18+pct_Pop_5_17_ACS_14_18+pct_Pop_25_44_ACS_14_18+pct_Pop_45_64_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Renter_Occp_HU_ACS_14_18+pct_Vacant_Units_ACS_14_18+pct_Mobile_Homes_ACS_14_18+pct_HHD_NoCompDevic_ACS_14_18+pct_HHD_No_Internet_ACS_14_18+pct_Hispanic_ACS_14_18+pct_NH_White_alone_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Schl_Enroll_3_4_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,covid)
+
+ldamod
+
+ldacverr = c()
+for (i in 1:10) {
+  train = covid2[-folds[[i]],]
+  test = covid2[folds[[i]],]
+  cvmod = lda(high_community_level~.,data=train)
+  ldacverr[i] = mean((test$high_community_level-as.logical(predict(cvmod,test)$class))^2)
+}
+
+lda_error = mean(ldacverr)
+lda_error
+
+# QDA
+qdamod = qda(high_community_level~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_under_5_ACS_14_18+pct_Pop_5_17_ACS_14_18+pct_Pop_25_44_ACS_14_18+pct_Pop_45_64_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Renter_Occp_HU_ACS_14_18+pct_Vacant_Units_ACS_14_18+pct_Mobile_Homes_ACS_14_18+pct_HHD_NoCompDevic_ACS_14_18+pct_HHD_No_Internet_ACS_14_18+pct_Hispanic_ACS_14_18+pct_NH_White_alone_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Schl_Enroll_3_4_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,covid)
+qdamod
+
+qdacverr = c()
+for (i in 1:10) {
+  train = covid2[-folds[[i]],]
+  test = covid2[folds[[i]],]
+  cvmod = qda(high_community_level~.,data=train)
+  qdacverr[i] = mean((test$high_community_level-as.logical(predict(cvmod,test)$class))^2)
+}
+
+qda_error = mean(qdacverr)
+qda_error
+
+# SVC
+library(e1071)
+svm1 = svm(high_community_level~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_under_5_ACS_14_18+pct_Pop_5_17_ACS_14_18+pct_Pop_25_44_ACS_14_18+pct_Pop_45_64_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Renter_Occp_HU_ACS_14_18+pct_Vacant_Units_ACS_14_18+pct_Mobile_Homes_ACS_14_18+pct_HHD_NoCompDevic_ACS_14_18+pct_HHD_No_Internet_ACS_14_18+pct_Hispanic_ACS_14_18+pct_NH_White_alone_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Schl_Enroll_3_4_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,covid,kernel="linear",type="C")
+
+set.seed(111)
+tuned = tune.svm(high_community_level~.,data = covid2,kernel="linear",type="C",cost = c(1,2,4,8,16))
+summary(tuned)
+plot(tuned)
+svc = tuned$best.model
+summary(svc)
+svc_error = tuned$best.performance
+svc_error
+# SVM(Poly)
+svm2 = svm(high_community_level~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_under_5_ACS_14_18+pct_Pop_5_17_ACS_14_18+pct_Pop_25_44_ACS_14_18+pct_Pop_45_64_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Renter_Occp_HU_ACS_14_18+pct_Vacant_Units_ACS_14_18+pct_Mobile_Homes_ACS_14_18+pct_HHD_NoCompDevic_ACS_14_18+pct_HHD_No_Internet_ACS_14_18+pct_Hispanic_ACS_14_18+pct_NH_White_alone_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Schl_Enroll_3_4_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,covid,kernel="polynomial",type="C")
+
+summary(svm2)
+set.seed(111)
+tuned2 = tune.svm(high_community_level~.,data = covid2,kernel="polynomial",type="C",cost = c(1,2,4,8,16),degree = c(2:5))
+summary(tuned2)
+plot(tuned2)
+svmp = tuned2$best.model
+summary(svmp)
+svmp_error = tuned2$best.performance
+svmp_error
+# SVM(Radial)
+svm3 = svm(high_community_level~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_under_5_ACS_14_18+pct_Pop_5_17_ACS_14_18+pct_Pop_25_44_ACS_14_18+pct_Pop_45_64_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Renter_Occp_HU_ACS_14_18+pct_Vacant_Units_ACS_14_18+pct_Mobile_Homes_ACS_14_18+pct_HHD_NoCompDevic_ACS_14_18+pct_HHD_No_Internet_ACS_14_18+pct_Hispanic_ACS_14_18+pct_NH_White_alone_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Schl_Enroll_3_4_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,covid,kernel="radial",type="C")
+
+summary(svm3)
+
+set.seed(111)
+tuned3 = tune.svm(high_community_level~.,data = covid2,kernel="radial",type="C",cost = c(1,2,4,8,16),gamma = 10^(-4:1))
+summary(tuned3)
+plot(tuned3)
+svmr = tuned3$best.model
+summary(svmr)
+svmr_error = tuned3$best.performance
+svmr_error
+```
+
+### (b)
+```{r}
+error = data.frame(model = c("LR","Logit","LDA","QDA","SVC","SVMpoly","SVMrad"),error=c(lr_error,logit_error,lda_error,qda_error,svc_error,svmp_error,svmr_error))
+error
+```
+From the table we find that the most models have similar errors. Logistic regression has the largest error because the features are so many for the method and cause underfitting. SVM radial kernel has the smallest error because it increase the dimension so that the two category points can be divided by a decision boundary.
+The differences of the errors are not significant practically
+
+### (c)
+```{r}
+data.frame(model = c("LR","Logit","LDA"),coef = c(lmod$coefficients[12],logit$coefficients[12],ldamod$scaling[11]))
+summary(covid2)
+```
+They are different because the logit coef is for the log(p/(1-p)), the LDA coef is of the linear discriminants.
+
+### (d)
+$$\hat{\pi}_0=\frac{N_0}{N} = \frac{1934}{3129}$$
+$$\hat{\pi}_1=\frac{N_1}{N} = \frac{1155}{3129}$$
+It represents the probability of the two classes
+
+$$\hat{\mu}_0=\sum_{gi=0}\frac{x_i}{N_0}$$
+$$\hat{\mu}_1=\sum_{gi=1}\frac{x_i}{N_1}$$
+It represents the estimates expectation of the Gaussian distribution.
+
+### (e)
+```{r}
+summary(svc)
+summary(svmp)
+summary(svmr)
+data.frame(model = c("svc","svmp","svmr"),number = c(2230,2103,2320))
+```
+
+The more support vectors, the less complex is the model, and the variance will be smaller and bias will be larger.
+
+### (f)
+```{r}
+library(pROC)
+
+h1=roc(high_community_level~logit$fitted.values,covid2,plot=T,col="red",print.auc=T)
+h2=roc(covid2$high_community_level,predict(ldamod)$posterior[,2],plot=T,add=T,print.auc=T,col="orange")
+h3 = roc(covid2$high_community_level,predict(qdamod)$posterior[,2],plot=T,add=T,print.auc=T,col="green")
+h4 = roc(covid2$high_community_level,as.ordered(svc$decision.values),plot=T,add=T,print.auc=T,col="blue")
+h5 = roc(covid2$high_community_level,as.ordered(svmp$decision.values),plot=T,add=T,print.auc=T,col="purple")
+h6 = roc(covid2$high_community_level,as.ordered(svmr$decision.values),plot=,add=T,print.auc=T,col="brown")
+```
+The plot show that the power of the prediction are similar, the svm(polynomial) has higher power
+
+### (g)
+
+```{r}
+c = sum(covid2$high_community_level)/nrow(covid2)
+#logit
+log2cverr = c()
+for (i in 1:10) {
+  train = covid2[-folds[[i]],]
+  test = covid2[folds[[i]],]
+  cvmod = glm(high_community_level~.,family = binomial(link = "logit"),data=train)
+  log2cverr[i] = mean((test$high_community_level-(predict(cvmod,test,type="response")>c))^2)
+}
+logit2_error = mean(log2cverr)
+logit2_error
+
+#LDA
+lda2cverr = c()
+for (i in 1:10) {
+  train = covid2[-folds[[i]],]
+  test = covid2[folds[[i]],]
+  cvmod = lda(high_community_level~.,data=train)
+  lda2cverr[i] = mean((test$high_community_level-(predict(cvmod,test)$posterior[,2]>c))^2)
+}
+
+lda2_error = mean(lda2cverr)
+lda2_error
+
+#QDA
+qda2cverr = c()
+for (i in 1:10) {
+  train = covid2[-folds[[i]],]
+  test = covid2[folds[[i]],]
+  cvmod = qda(high_community_level~.,data=train)
+  qda2cverr[i] = mean((test$high_community_level-(predict(cvmod,test)$posterior>c))^2)
+}
+
+qda2_error = mean(qda2cverr)
+qda2_error
+```
+The logistic and lda model has similar test error but qda has much larger error. All the errors are larger than the cut off before.
+
+### (h)
+```{r}
+n = nrow(covid2)
+#logit
+logit_pred = rep(FALSE,n)
+logit_pred[predict(logit,covid2,type = "response")>0.5] = TRUE
+table(logit_pred,covid2$high_community_level)
+sens = 460/(735+460)
+sens
+spec = 1660/(1660+274)
+spec
+
+logit2_pred = rep(FALSE,n)
+logit2_pred[predict(logit,covid2,type = "response")>c] = TRUE
+table(logit2_pred,covid2$high_community_level)
+sens2 = 724/(471+724)
+spec2 = 1342/(1342+592)
+
+# LDA
+
+table(predict(ldamod)$class,covid2$high_community_level)
+lda_sens = 451/(744+451)
+lda_sens
+lda_spec = 1670/(1670+264)
+lda_spec
+
+lda_pred = rep(FALSE,n)
+lda_pred[predict(ldamod)$posterior[,2]>c]=TRUE
+table(lda_pred,covid2$high_community_level)
+lda2_sens = 714/(481+714)
+lda2_sens
+lda2_spec = 1362/(1362+572)
+lda2_spec
+
+# QDA
+table(predict(qdamod)$class,covid2$high_community_level)
+qda_sens = 614/(581+614)
+qda_sens
+qda_spec = 1533/(1533+401)
+qda_spec
+
+qda_pred = rep(FALSE,n)
+qda_pred[predict(qdamod)$posterior[,2]>c]=TRUE
+table(qda_pred,covid2$high_community_level)
+qda2_sens = 783/(783+412)
+qda2_sens
+qda2_spec = 1276/(1276+658)
+qda2_spec
+error
+```
+I will choose the QDA with new cutoff=0.3819
+Because it keep both of the sensitivity and specifity high.
+I think Sensitivity is more important than the specifity. Since we want to decrease the risk of the COVID. So we can accept the false positive but not the false negative.
+
+### (i)
+I would choose the SVM because the error is the smallest and we can adjust the model to fit well by using the tuning parameters.
+
+
+## Q2
+### (a)
+```{r}
+set.seed(111)
+x1 = runif(500) - 0.5
+x2 = runif(500) - 0.5
+y = 1 * (x1^2 - x2^2 > 0)
+d = data.frame(x1,x2,y)
+```
+### (b)
+```{r}
+plot(x1[y == 0], x2[y == 0], col = "red", xlab = "X1", ylab = "X2")
+points(x1[y == 1], x2[y == 1], col = "green")
+```
+### (c)
+```{r}
+logit3 = glm(y ~ x1 + x2, family = binomial(link="logit"),d)
+summary(logit3)
+```
+### (d)
+```{r}
+logit3_prob = predict(logit3, d, type = "response")
+logit3_pred = ifelse(logit3_prob > 0.5, 1, 0)
+d1 = d[logit3_pred == 1, ]
+d0 = d[logit3_pred == 0, ]
+plot(d1$x1, d1$x2, col = "red", xlab = "X1", ylab = "X2")
+points(d0$x1, d0$x2, col = "green")
+```
+
+### (e)
+```{r}
+logit4 = glm(y ~ poly(x1, 3) + I(x1 * x2), data = d, family = binomial)
+```
+### (f)
+```{r}
+logit4_prob = predict(logit4, d, type = "response")
+logit4_pred = ifelse(logit4_prob > 0.5, 1, 0)
+d11 = d[logit4_pred == 1, ]
+d00 = d[logit4_pred == 0, ]
+plot(d11$x1, d11$x2, col = "red", xlab = "X1", ylab = "X2")
+points(d00$x1, d00$x2, col = "green")
+```
+### (g)
+```{r}
+svm_fit = svm(as.factor(y) ~ x1 + x2, d, kernel = "linear",cost=11)
+svm_pred = predict(svm_fit, d)
+d111 = d[svm_pred == 1,]
+d000 = d[svm_pred == 0,]
+plot(d111$x1, d111$x2, col = "red", xlab = "X1", ylab = "X2",xlim=c(-1,1),ylim = c(0,1))
+points(d000$x1, d000$x2, col = "green")
+```
+### (h)
+```{r}
+svm2fit = svm(as.factor(y) ~ x1 + x2, d, kernel="polynomial",type="C")
+svm2pred = predict(svm2fit, d)
+d21 = d[svm2pred == 1, ]
+d20 = d[svm2pred == 0, ]
+plot(d21$x1, d21$x2, col = "red", xlab = "X1", ylab = "X2")
+points(d20$x1, d20$x2, col = "green")
+```
+
+### (i)
+We find that the SVM method with non-linear kernels can help us to find the non-linear decision boundary. Of course we need to adjust the tuning parameter to find the optimal parameters like gamma,cost and degree. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+

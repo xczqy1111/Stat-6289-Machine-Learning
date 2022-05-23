@@ -1,0 +1,247 @@
+---
+title: "MLHW3"
+author: "Qinyuan Xing"
+date: "2022/2/23"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F, results = "markup", message = F)
+options(scientific=T, digits = 3) 
+```
+
+## Q1
+### (a)
+
+```{r}
+library(leaps)
+library(boot)
+library(glmnet)
+library(pls)
+library(plyr)
+covid = data.frame(read.csv("E:\\2022 Spring\\R\\covid_data_pdb_v2.csv"))
+covid$lcase_rate = log(100*(covid$covid_count /covid$Tot_Population_ACS_14_18))
+str(covid)
+covid_std = data.frame(scale(covid[,c(12:83)]))
+covid_std$lcase_rate = covid$lcase_rate
+set.seed(123)
+
+# LM
+lmod = glm(lcase_rate~.,data = covid_std)
+summary(lmod)
+lm_er = cv.glm(covid_std,lmod,K = 10)$delta[1]
+lm_coef = coef(lmod)
+
+# LM STEP backward criteria:AIC
+lmod_step = step(lmod,direction = "backward")
+lmstep_er = cv.glm(covid_std,lmod_step,K=10)$delta[1]
+lmstep_coef = coef(lmod_step)
+
+# ridge regression
+ridge = glmnet(x = covid_std[,c(1:72)],y = covid_std$lcase_rate,alpha = 0)
+cv_ridge = cv.glmnet(x = as.matrix(covid_std[,c(1:72)]),y = covid_std$lcase_rate,alpha = 0,type.measure = "mse",nfolds = 10)
+plot(cv_ridge)
+cv_ridge
+ridge_lambda = cv_ridge$lambda.min
+ridge_er = min(cv_ridge$cvm)
+ridge_coef = as.matrix(coef(ridge,s = ridge_lambda))
+# lasso regression
+lasso = glmnet(x = covid_std[,c(1:72)],y = covid_std$lcase_rate,alpha = 1)
+cv_lasso = cv.glmnet(x = as.matrix(covid_std[,c(1:72)]),y = covid_std$lcase_rate,alpha = 1,type.measure = "mse",nfolds = 10)
+plot(cv_lasso)
+cv_lasso
+lasso_lambda = cv_lasso$lambda.min
+lasso_er = min(cv_lasso$cvm)
+lasso_coef = as.matrix(coef(lasso,s = lasso_lambda))
+
+# PCR
+pcr_fit = pcr(lcase_rate~.,data = covid_std,validation='CV')
+summary(pcr_fit)
+validationplot(pcr_fit,val.type = "MSEP")
+MSEP(pcr_fit,ncomp = 59)
+pcr_er = MSEP(pcr_fit,ncomp = 59)[[1]][3]
+pcr_coef = coef(pcr_fit,ncomp = 59)
+pcr_fit$coefficients
+# PLS
+pls_fit = plsr(lcase_rate~.,data = covid_std,validation='CV')
+summary(pls_fit)
+validationplot(pls_fit,val.type = "MSEP")
+MSEP(pls_fit)
+pls_er = MSEP(pls_fit,ncomp = 16)[[1]][3]
+pls_coef = coef(pls_fit,ncomp = 16)
+
+```
+
+### (b)
+
+```{r}
+error = data.frame(lm = lm_er,lmstep = lmstep_er,ridge = ridge_er,lasso = lasso_er,pcr = pcr_er,pls = pls_er)
+error
+```
+The linear regression has the largest error because it has very high variance.
+
+The linear regression after feature selection has the lowest error because it has less predictors and less variance, reduces the overfitting.
+
+### (c)
+
+```{r}
+coef1= data.frame(LS = lm_coef,Ridge = ridge_coef,Lasso = lasso_coef)
+colnames(coef1) = c("LS","Ridge","Lasso")
+coef2 = data.frame(PCR = pcr_coef, PLS = pls_coef)
+colnames(coef2) = c("PCR","PLS")
+coef3 = data.frame(BEST = lmstep_coef)
+coef1t = data.frame(t(coef1))
+coef2t = data.frame(t(coef2))
+coef3t = data.frame(t(coef3))
+coeft = rbind.fill(coef1t,coef2t,coef3t)
+coeft[coeft==0] = NA
+coeft$test_error = c(lm_er,ridge_er,lasso_er,pcr_er,pls_er,lmstep_er)
+coef_data = data.frame(t(coeft))
+colnames(coef_data) = c("LS","Ridge","Lasso","PCR","PLS","BEST")
+coef_data
+plot(ridge,xvar = "lambda")
+title(main = "ridge")
+plot(lasso,xvar = "lambda")
+title(main = "lasso")
+```
+No because lasso regression can easily make some coefficients to be zero.
+From the plot we can find that when the lambda increase, many of the coefs of lasso become 0, but the ridge coefs are close to but not equal to 0.
+
+### (d)
+
+From the table of the error I would choose linear model after feature selection because it has the least predictors and the lowest test error.
+
+## Q2
+
+### (a)
+
+```{r}
+set.seed(111)
+# LM
+lmod2 = glm(lcase_rate~pct_Pop_NoCompDevic_ACS_14_18,data = covid)
+summary(lmod2)
+ls_er = cv.glm(covid,lmod2,K=10)$delta[1]
+# poly
+polyer = data.frame()
+for (i in 1:10) {
+  pmod = glm(lcase_rate~poly(pct_Pop_NoCompDevic_ACS_14_18,degree = i,raw = T),data = covid)
+  d = data.frame(degree = i,error=cv.glm(covid,pmod,K = 10)$delta[1])
+  polyer = rbind(polyer,d)
+}
+polyer[polyer$error==min(polyer$error),]
+plot(x=polyer$degree,y =polyer$error)
+polymod = glm(lcase_rate~poly(pct_Pop_NoCompDevic_ACS_14_18,degree = 2,raw = T),data = covid)
+polymod_er=cv.glm(covid,polymod,K = 10)$delta[1]
+
+# piecewise poly
+piecepolyer = data.frame()
+levels(cut(covid$pct_Pop_NoCompDevic_ACS_14_18,3))
+for (i in 1:10) {
+  pplmod1 = glm(lcase_rate~poly(pct_Pop_NoCompDevic_ACS_14_18,degree = i,raw = T),data = covid,subset =   (covid$pct_Pop_NoCompDevic_ACS_14_18<=19.7))
+  pplmod2 = glm(lcase_rate~poly(pct_Pop_NoCompDevic_ACS_14_18,degree = i,raw = T),data = covid,subset = (pct_Pop_NoCompDevic_ACS_14_18<=38.9&pct_Pop_NoCompDevic_ACS_14_18>19.7))
+  pplmod3 = glm(lcase_rate~poly(pct_Pop_NoCompDevic_ACS_14_18,degree = i,raw = T),data = covid,subset = (pct_Pop_NoCompDevic_ACS_14_18>38.9))
+  d = data.frame(pdegree = i,error=(sum(pplmod1$residuals^2)+sum(pplmod2$residuals^2)+sum(pplmod3$residuals^2))/3133)
+  piecepolyer = rbind(piecepolyer,d)
+}
+piecepolyer
+piecepolyer[piecepolyer$error==min(piecepolyer$error),]
+pplmod1 = glm(lcase_rate~poly(pct_Pop_NoCompDevic_ACS_14_18,degree = 10,raw = T),data = covid,subset =   (covid$pct_Pop_NoCompDevic_ACS_14_18<=19.7))
+  pplmod2 = glm(lcase_rate~poly(pct_Pop_NoCompDevic_ACS_14_18,degree = 10,raw = T),data = covid,subset = (pct_Pop_NoCompDevic_ACS_14_18<=38.9&pct_Pop_NoCompDevic_ACS_14_18>19.7))
+  pplmod3 = glm(lcase_rate~poly(pct_Pop_NoCompDevic_ACS_14_18,degree = 10,raw = T),data = covid,subset = (pct_Pop_NoCompDevic_ACS_14_18>38.9))
+
+# regression spline
+library(splines)
+splineer = data.frame()
+for (i in 1:10) {
+  sp = glm(lcase_rate~bs(x = pct_Pop_NoCompDevic_ACS_14_18,knots = c(19.7,38.9),degree = i),data = covid)
+  d= data.frame(sdegree = i,error = cv.glm(covid,sp,K=10)$delta[1])
+  splineer = rbind(splineer,d)
+}
+splineer
+splineer[splineer$error == min(splineer$error),]
+
+spmod = glm(lcase_rate~bs(x = pct_Pop_NoCompDevic_ACS_14_18,knots = c(19.7,38.9),degree = 2),data = covid)
+
+# natural cubic spline
+
+nspmod = glm(lcase_rate~ns(x = pct_Pop_NoCompDevic_ACS_14_18,knots = c(19.7,38.9)),data = covid)
+nspmod_er = cv.glm(covid,nspmod,K = 10)$delta[1]
+
+# smooth spline
+lambdas = seq(0,1,length.out=1000)
+sspmoder = data.frame()
+for (i in 1:1000) {
+  ssp = smooth.spline(x = covid$pct_Pop_NoCompDevic_ACS_14_18,y = covid$lcase_rate,lambda = lambdas[i] )
+  d = data.frame(lambda = lambdas[i],error = ssp$crit)
+  sspmoder = rbind(sspmoder,d)
+}
+sspmoder
+
+sspmod = smooth.spline(x = covid$pct_Pop_NoCompDevic_ACS_14_18,y = covid$lcase_rate)
+sspmod
+```
+
+### (b)
+
+```{r}
+library(ggplot2)
+pgrid = seq(min(covid$pct_Pop_NoCompDevic_ACS_14_18),max(covid$pct_Pop_NoCompDevic_ACS_14_18),length.out=100)
+ppgrid1 = seq(min(covid$pct_Pop_NoCompDevic_ACS_14_18),19.7,length.out=100)
+ppgrid2 = seq(19.7,38.9,length.out=100)
+ppgrid3 = seq(38.9,max(covid$pct_Pop_NoCompDevic_ACS_14_18),length.out=100)
+plot(lcase_rate~pct_Pop_NoCompDevic_ACS_14_18,covid)
+lines(pgrid,predict(polymod,list(pct_Pop_NoCompDevic_ACS_14_18=pgrid)),col="orange")
+lines(lmod2$fitted.values,col = 'red')
+lines(ppgrid1,predict(pplmod1,list(pct_Pop_NoCompDevic_ACS_14_18=ppgrid1)),col="green")
+lines(ppgrid2,predict(pplmod2,list(pct_Pop_NoCompDevic_ACS_14_18=ppgrid2)),col="green")
+lines(ppgrid3,predict(pplmod3,list(pct_Pop_NoCompDevic_ACS_14_18=ppgrid3)),col="green")
+lines(pgrid,predict(spmod,list(pct_Pop_NoCompDevic_ACS_14_18=pgrid)),col="blue")
+lines(pgrid,predict(nspmod,list(pct_Pop_NoCompDevic_ACS_14_18=pgrid)),col="pink")
+lines(pgrid,predict(sspmod,x=pgrid)$y,col="purple")
+legend(x = "topright",legend=c('LS','Poly',"Piece poly","Spline",'Natural spline','Smooth Spline'),col=c('red','orange','green','blue','pink','purple'),cex = 0.5,ncol = 2,lty=1,lwd=1)
+```
+
+The plots show that the different functions has different accuracy and variance.
+
+The lines for the former part with dense points are similar.
+
+### (c)
+
+```{r}
+data.frame(mod = c('LS','POLY','PIECEPOLY','SPLINE','NATURAL','SMOOTH'),error=c(ls_er,polymod_er,min(piecepolyer$error),min(splineer$error),nspmod_er,sspmod$crit))
+```
+
+LS has the largest error for the high variance because of the high bias and high variance.
+
+Piecewise polynomial has the least error because the fit for each region is accuracy enough
+
+### (d)
+```{r}
+summary(polymod)
+cat("'Intercept','x term','x^2term'")
+cat("Piece poly is similar")
+summary(nspmod)
+cat("ns(*)1 reprsent the x term,ns(*)2 represent the x^2 term and so on")
+```
+
+### (e)
+
+I would choose the smooth spline because it is easy to understand and explain. It also has the pretty small test error.
+
+
+
+
+
+
+
+

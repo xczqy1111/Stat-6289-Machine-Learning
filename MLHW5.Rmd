@@ -1,0 +1,207 @@
+---
+title: "MLHW5"
+author: "Qinyuan Xing"
+date: "2022/3/23"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F, results = "markup", message = F)
+options(scientific=T, digits = 3) 
+```
+
+## Q1
+### (a)
+```{r}
+library("rpart")
+covid = data.frame(read.csv("E:\\2022 Spring\\R\\covid_data_pdb_v3.csv"))
+library(dplyr)
+covid2 = select(covid,c(pct_URBANIZED_AREA_POP_CEN_2010,pct_Males_ACS_14_18,pct_Pop_under_5_ACS_14_18,pct_Pop_5_17_ACS_14_18,pct_Pop_25_44_ACS_14_18,pct_Pop_45_64_ACS_14_18,pct_Pop_65plus_ACS_14_18,pct_Renter_Occp_HU_ACS_14_18,pct_Vacant_Units_ACS_14_18,pct_Mobile_Homes_ACS_14_18,pct_HHD_NoCompDevic_ACS_14_18,pct_HHD_No_Internet_ACS_14_18,pct_Hispanic_ACS_14_18,pct_NH_White_alone_ACS_14_18,pct_NH_Blk_alone_ACS_14_18,pct_Schl_Enroll_3_4_ACS_14_18,pct_Prs_Blw_Pov_Lev_ACS_14_18,high_community_level))
+set.seed(123)
+dtree = rpart(high_community_level~.,data = covid2,method = "class",parms = list(split="gini",loss=matrix(c(0,1,1,0),nrow = 2)),control = list(xval = 10))
+dtree$cp
+plotcp(dtree)
+dtree$cptable
+dtree_pru<-prune(dtree,cp=dtree$cptable[which.min(dtree$cptable[,"xerror"]),"CP"])
+alpha=dtree$cptable[which.min(dtree$cptable[,"xerror"]),"CP"]
+alpha
+```
+0.01 is the cost-complexity parameter we choose.
+### (b)
+```{r}
+library(caret)
+set.seed(123)
+folds = createFolds(covid2$high_community_level,k=10)
+cverr = c()
+for (i in 1:10) {
+  train = covid2[-folds[[i]],]
+  test = covid2[folds[[i]],]
+  cverr[i] = mean((test$high_community_level-predict(dtree_pru,test))^2)
+}
+error = mean(cverr)
+error
+```
+The 10 folded CV test error (mse) for 0-1 loss is 0.298
+
+### (c)
+
+```{r}
+library("rpart.plot")
+rpart.plot(dtree_pru,cex = 0.5,,type=3,fallen.leaves = F,under = T,varlen = 0)
+str(covid2)
+```
+In the plot, we know that the counties with one of the following features need to wear masks indoor:
+
+1. pct_Mobile_Homes_ACS_14_18 >= 7.1 & pct_Prs_Blw_Pov_Lev_ACS_14_18 >= 17 & pct_NH_Blk_alone_ACS_14_18 < 11 & pct_Vacant_Units_ACS_14_18 < 27
+
+2. pct_Mobile_Homes_ACS_14_18 >= 7.1 & pct_Prs_Blw_Pov_Lev_ACS_14_18 >= 17 & pct_NH_Blk_alone_ACS_14_18 < 11 & pct_Vacant_Units_ACS_14_18 >= 27 & pct_Prs_Blw_Pov_Lev_ACS_14_18 >= 21
+
+3. pct_Mobile_Homes_ACS_14_18 >= 7.1 & pct_Prs_Blw_Pov_Lev_ACS_14_18 >= 17 & pct_NH_Blk_alone_ACS_14_18 >= 11 & pct_Hispanic_ACS_14_18 >=3.1 & pct_Pop_under_5_ACS_14_18 < 6.2
+
+4. pct_Mobile_Homes_ACS_14_18 >= 7.1 & pct_Prs_Blw_Pov_Lev_ACS_14_18 < 17 & pct_Pop_5_17_ACS_14_18 < 20 & pct_URBANIZED_AREA_POP_CEN_2010 >= 4.1 & pct_Mobile_Homes_ACS_14_18 >= 9.4
+
+5. pct_Mobile_Homes_ACS_14_18 >= 7.1 & pct_Prs_Blw_Pov_Lev_ACS_14_18 < 17 & pct_Pop_5_17_ACS_14_18 < 20 & pct_URBANIZED_AREA_POP_CEN_2010 < 4.1 & pct_HHD_NoCompDevic_ACS_14_18 >= 19 & pct_HHD_No_Internet_ACS_14_18 < 27
+
+### (d)
+```{r}
+p = sum(covid2$high_community_level==F)/nrow(covid2)
+d = data.frame(predict(dtree_pru))
+d$class = d$TRUE.>p
+terror = 1-sum(d$class==covid2$high_community_level)/nrow(covid2)
+terror
+
+set.seed(123)
+dtree2 = rpart(high_community_level~.,data = covid2,method = "class",parms = list(split="gini",loss=matrix(c(0,1,1,0),nrow = 2),prior = c(p,1-p)),control = list(xval = 10))
+dtree2$cp
+dtree2_pru<-prune(dtree2,cp=dtree2$cptable[which.min(dtree2$cptable[,"xerror"]),"CP"])
+
+terror = 1-sum(predict(dtree2_pru,type = "class")==covid2$high_community_level)/nrow(covid2)
+terror
+```
+The error using cutoff=0.618 is smaller than cutoff=0.5
+
+### (e)
+```{r}
+library(pROC)
+plot(roc(covid2$high_community_level,predict(dtree2_pru)[,2]),print.auc=TRUE,auc.polygon=TRUE,max.auc.polygon=TRUE)
+```
+The auc is 0.7 so that the model's power is OK but not so good.
+
+### (f)
+I will choose the decision tree because the test error is smaller than the former classifiers like SVM.
+
+
+## Q2
+```{r}
+data(Hitters,package = "ISLR")
+summary(Hitters)
+colSums(is.na(Hitters))
+new_Hitters = select(na.omit(Hitters),c(Years,Hits,Salary))
+new_Hitters$log_salary = log(new_Hitters$Salary)
+summary(new_Hitters)
+```
+### SSE
+
+```{r}
+sse_x=function(x,y){
+        split_points = seq(from=min(x),to=max(x),by=1)
+        #The sequence is step by 1 for the variables are integrals
+        sse = c()
+        for (i in 1:length(split_points)) {
+          spp=split_points[i]
+          sse[i] = sum((y[x<spp]-mean(y[x<spp]))^2)+sum((y[x>=spp]-mean(y[x>=spp]))^2)
+          #The predictions must be the average to get the minimum
+        }
+        split = split_points[which.min(sse)]
+        return(c(spt=split,sse=min(sse)))
+        # return the split variable and split point
+}
+
+```
+
+### Regtree
+
+```{r}
+regtree = function(formula,data,minsize){
+  Split = T # the sign to define loop should stop or not
+  i=1 # the index of the nodes. 1 is the root node.
+  data1 = new_Hitters
+  #data1 2 to keep the two part of one parent node
+  data2 = data.frame() #At first only 1 node
+  tree= data.frame() # To save the information of the nodes and the tree
+  while(Split==T){
+    
+    X = model.matrix(formula,data1)[,-1] 
+    #Get the design model of features and remove the intercept terms.
+    y = data1[,as.character(formula)[2]]
+    #Get the y
+    split1 = data.frame(apply(X,  MARGIN = 2, FUN = sse_x, y=y))
+    # get the splits of the two features 
+    tree = rbind(tree,data.frame(Node = i,obs = nrow(data1),split_var = names(which.min(split1[2,])),point=split1[1,which.min(split1[2,])],yhat=mean(y)))
+    # choose the best split variable with its point
+    i = i+1 # the index add 1
+    
+    if (length(data2)>0) {
+      X = model.matrix(formula,data2)[,-1]
+      y = data2[,as.character(formula)[2]]
+      split2 = data.frame(apply(X,  MARGIN = 2, FUN = sse_x, y=y))
+      tree = rbind(tree,data.frame(Node = i,obs = nrow(data2),split_var = names(which.min(split2[2,])),point=split2[1,which.min(split2[2,])],yhat=mean(y)))
+      i = i+1
+    
+    }
+    
+    if(nrow(data1)<minsize&nrow(data2)<minsize) {
+      Split = F
+    }
+    else if (nrow(data1)<minsize&!nrow(data2)<minsize) {
+      data1 = subset(data2,data2[names(which.min(split2[2,]))]<split2[1,which.min(split2[2,])])
+      data2 = subset(data2,data2[names(which.min(split2[2,]))]>=split2[1,which.min(split2[2,])])
+    }
+    else if (nrow(data2)<minsize&!nrow(data1)<minsize) {
+      data2 = subset(data1,data1[names(which.min(split1[2,]))]>=split1[1,which.min(split1[2,])])
+      data1 = subset(data1,data1[names(which.min(split1[2,]))]<split1[1,which.min(split1[2,])])
+    
+    }
+  }
+  tree$split_var[tree$obs<minsize]="Leaf"
+  tree$point[tree$obs<minsize]="NA"
+  return(tree)
+}
+regtree(log_salary~Years+Hits,new_Hitters,100)
+rtree = rpart(log_salary~Years+Hits,new_Hitters,method = "anova",control = list(minsplit=100))
+rpart.plot(rtree)  
+
+```
+
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

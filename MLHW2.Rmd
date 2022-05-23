@@ -1,0 +1,404 @@
+---
+title: "MLHW2"
+author: "Qinyuan Xing"
+date: "2022/2/9"
+output:
+  html_document:
+    code_folding: hide
+    number_sections: false
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+  pdf_document:
+    
+    toc: yes
+    toc_depth: '3'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = F, results = "markup", message = F)
+options(scientific=T, digits = 3) 
+```
+
+## Q1
+### (a)
+
+```{r}
+set.seed(152)
+ds = list()
+for (i in 1:100) {
+  d1 = data.frame(x1 = rnorm(100),x2 = rnorm(100,1,1),y = 1)
+  d2 = data.frame(x1 = rnorm(100,1,1),x2 = rnorm(100),y = 0)
+  d = rbind(d1,d2)
+  ds[[i]] = d
+}
+
+dst = list()
+for (i in 1:100) {
+  d1 = data.frame(x1 = rnorm(100),x2 = rnorm(100,1,1),y = 1)
+  d2 = data.frame(x1 = rnorm(100,1,1),x2 = rnorm(100),y = 0)
+  d = rbind(d1,d2)
+  dst[[i]] = d
+}
+library(class)
+knn_lst = list()
+knn_tr = list()
+for (i in 1:20) {
+  knn_i = knn(train = ds[[1]][,1:2],test = dst[[1]][,1:2],cl = ds[[1]]$y,k = i)
+  knn_lst[[i]] = knn_i
+  knn_i = knn(train = ds[[1]][,1:2],test = ds[[1]][,1:2],cl = ds[[1]]$y,k = i)
+  knn_tr[[i]] = knn_i
+}
+x = c(1:20)
+y = c()
+y2 = c()
+for (i in 1:20) {
+  e=sum(knn_tr[[i]]!=ds[[1]]$y)/nrow(ds[[1]])
+  y = c(y,e)
+  E=sum(knn_lst[[i]]!=dst[[1]]$y)/nrow(dst[[1]])
+  y2 = c(y2,E)
+}
+
+
+dp = data.frame(k=x,tr_e = y,te_E = y2)
+library(ggplot2)
+p = ggplot(data =dp,aes(x = k,y = tr_e))
+p+geom_line(aes(color = "Train"))+xlim(20,1)+geom_line(aes(x = k,y = te_E,color = "Test"),inherit.aes =F)+ylab("Error")+scale_color_manual(values=c(Test="pink", Train="light blue"))
+```
+The training error decreases rapidly when the complexity is high.
+
+The test error decreases first and then increases when the complexity is high.
+
+### (b)
+
+```{r}
+p = ggplot()
+for (t in 1:100) {
+  knn_lst = list()
+  knn_tr = list()
+  for (i in 1:20) {
+    knn_i = knn(train = ds[[t]][,1:2],test = dst[[t]][,1:2],cl =  ds[[t]]$y,k = i)
+    knn_lst[[i]] = knn_i
+    knn_i = knn(train = ds[[t]][,1:2],test = ds[[t]][,1:2],cl = ds[[t]]$y,k = i)
+    knn_tr[[i]] = knn_i
+}
+  y = c()
+  y2 = c()
+  for (i in 1:20) {
+    e=sum(knn_tr[[i]]!=ds[[t]]$y)/nrow(ds[[t]])
+    y = c(y,e)
+    E=sum(knn_lst[[i]]!=dst[[t]]$y)/nrow(dst[[t]])
+    y2 = c(y2,E)
+}
+
+dp = data.frame(k=x,tr_e = y,te_E = y2)
+p = p+geom_line(data=dp,aes(x = k, y = tr_e,color = "Train"),inherit.aes=F)+xlim(20,1)+geom_line(data=dp,aes(x = k,y = te_E,color = "Test"),inherit.aes =F)+ylab("Error")+scale_color_manual(values=c(Test="pink", Train="light blue"))
+}
+p
+```
+
+The train error lines are closed to each other while the test error lines are not as closed as the train error lines. 
+
+### (c)
+```{r}
+y_bar = c()
+y2_bar = c()
+for (i in 1:20) {
+  y = c()
+  y2 = c()
+  for (t in 1:100) {
+    knn_lst = list()
+    knn_tr = list()
+    knn_i = knn(train = ds[[t]][,1:2],test = dst[[t]][,1:2],cl =  ds[[t]]$y,k = i)
+    knn_lst[[i]] = knn_i
+    knn_i = knn(train = ds[[t]][,1:2],test = ds[[t]][,1:2],cl = ds[[t]]$y,k = i)
+    knn_tr[[i]] = knn_i
+    e=sum(knn_tr[[i]]!=ds[[t]]$y)/nrow(ds[[t]])
+    E=sum(knn_lst[[i]]!=dst[[t]]$y)/nrow(dst[[t]])
+    y = c(y,e)
+    y2 = c(y2,E)
+  }
+  y_bar = c(y_bar,mean(y))
+  y2_bar = c(y2_bar,mean(y2))
+}
+dm = data.frame(k = x,mtr_e = y_bar,mte_E = y2_bar)
+p+geom_line(data=dm,aes(x = k, y = mtr_e,color = "ETrain"),inherit.aes=F)+xlim(20,1)+geom_line(data=dm,aes(x = k,y = mte_E,color = "ETest"),inherit.aes =F)+ylab("Error")+scale_color_manual(values=c(Test="pink", Train="light blue",ETest="red",ETrain="blue"))
+```
+
+When the complexity of the model increases, the average train error will decrease but the average test error will increase.
+
+Both the test and train error are stable when the complexity is less than a certain level ( about k = 5, df=N/k = 40). But when the df is over that value the error will increase/decrease rapidly.
+
+### (d)
+```{r}
+dm
+```
+I choose k=5 for the average train and test error are both small.
+
+### (e)
+
+When k is small which means the complexity is high, the bias is low so that the train error is small, but the variance is high so that the test error is large.
+
+When k is large which means the complexity is low, the bias is high so that the train error is large, but the variance is small so that the test error is small.
+
+## Q2
+### (a)
+```{r}
+covid = data.frame(read.csv("E:\\2022 Spring\\R\\covid_data_pdb.csv"))
+str(covid)
+covid$case_rate = 100*(covid$covid_count /covid$Tot_Population_ACS_14_18)
+lmod = lm(case_rate~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Inst_GQ_CEN_2010+pct_Hispanic_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,data=covid)
+summary(lmod)
+
+LL = (-1/2)*nrow(covid)*log(2*pi)-(nrow(covid)/2)*log(sum((lmod$residuals)^2)/nrow(covid))-nrow(covid)/2
+aic = -2*LL+2*9
+aic
+AIC(lmod)
+
+bic = -2*LL+9*log(nrow(covid))
+bic
+BIC(lmod)
+
+# Divide into K groups randomly
+CVgroup <- function(k,datasize,seed){
+  cvlist <- list()
+  set.seed(seed)
+  n <- rep(1:k,ceiling(datasize/k))[1:datasize]    
+  temp <- sample(n,datasize)   
+  x <- 1:k
+  dataseq <- 1:datasize
+  cvlist <- lapply(x,function(x) dataseq[temp==x])  
+  return(cvlist)
+}
+
+#10CV
+cv10_lst = CVgroup(10,nrow(covid),seed = 123)
+cv10err = c()
+for (i in 1:10) {
+  train = covid[-cv10_lst[[i]],]
+  test = covid[cv10_lst[[i]],]
+  cvlmod = lm(case_rate~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Inst_GQ_CEN_2010+pct_Hispanic_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,data=train)
+  cv10err[i] = mean((test$case_rate-predict(cvlmod,test))^2)
+  
+}
+CV10 = mean(cv10err)
+CV10
+
+# 5CV
+cv5_lst = CVgroup(5,nrow(covid),seed = 123)
+cv5err = c()
+for (i in 1:5) {
+  train = covid[-cv5_lst[[i]],]
+  test = covid[cv5_lst[[i]],]
+  cvlmod = lm(case_rate~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Inst_GQ_CEN_2010+pct_Hispanic_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,data=train)
+  cv5err[i] = mean((test$case_rate-predict(cvlmod,test))^2)
+  
+}
+CV5 = mean(cv5err)
+CV5
+
+# LOOCV
+loocv_lst = CVgroup(nrow(covid),nrow(covid),seed = 123)
+loocverr = c()
+for (i in 1:nrow(covid)) {
+  train = covid[-loocv_lst[[i]],]
+  test = covid[loocv_lst[[i]],]
+  cvlmod = lm(case_rate~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Inst_GQ_CEN_2010+pct_Hispanic_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,data=train)
+  loocverr[i] = sum((test$case_rate-predict(cvlmod,test))^2)
+  
+}
+LOOCV = mean(loocverr)
+LOOCV
+
+# Bootstrap
+B = 100
+n = nrow(covid)
+bserr = c()
+for (b in 1:B) {
+  s = sample(1:n,n,replace = T)
+  bootdata = covid[s,]
+  bootlmod = lm(case_rate~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Inst_GQ_CEN_2010+pct_Hispanic_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,data=bootdata)
+  bserr[b] = mean((bootlmod$fitted.values-bootdata$case_rate)^2)
+}
+
+mean(bserr)
+
+#LOO Bootstrap
+loobserr = c()
+set.seed(123)
+slst = list()
+for (b in 1:B) {
+  s = sample(1:n,n,replace = T)
+  slst[[b]] =  s
+}
+for (i in 1:n) {
+  t = 0
+  be = 0
+  for (b in 1:B) {
+    if (is.element(i,slst[[b]])) {
+      loobsdata = covid[slst[[b]],]
+      loobsmod = lm(case_rate~pct_URBANIZED_AREA_POP_CEN_2010+pct_Males_ACS_14_18+pct_Pop_65plus_ACS_14_18+pct_Inst_GQ_CEN_2010+pct_Hispanic_ACS_14_18+pct_NH_Blk_alone_ACS_14_18+pct_Prs_Blw_Pov_Lev_ACS_14_18,data=loobsdata)
+      t=t+1
+      be = be+(loobsmod$fitted.values-loobsdata$case_rate)^2
+      
+    }
+  }
+  loobserr[i] = be/t
+}
+mean(loobserr)
+
+
+#0.632 bootstrap
+err_bar = mean((lmod$fitted.values-covid$case_rate)^2)
+0.632*mean(loobserr)+0.368*err_bar
+
+```
+
+### (b)
+
+```{r}
+err_bar
+```
+The train error is OK for estimating generalization error.Because the size of the data is large. The estimates of the test error are similar with the train error.
+
+### (c)
+
+The extra-sample error is larger than the in-sample error because the model is fitted from the train samples without the test sets. So there is overfitting.
+
+I think the LOOCV is better for the lowest test error estimate.
+
+## Q3
+### (a)
+```{r}
+lmod2 = lm(log(case_rate)~pct_Inst_GQ_CEN_2010,data = covid)
+MLE = lmod2$coefficients[2]
+MLE
+sum = summary(lmod2)
+sum$coefficients[2,2]
+LO = MLE-sum$coefficients[2,2]*1.96
+UP = MLE+sum$coefficients[2,2]*1.96
+cat("(",LO,UP,")")
+```
+$\hat{\beta}=(\mathbf{X}^T\mathbf{X})^{-1}\mathbf{X}^Ty$ is the closed form of MLE of $\beta$. The confidence interval (0.00353,0.00824) means that probability of the beta in the interval is 95%. The SE of the beta is 0.0012
+
+### (b)
+
+```{r}
+plot(x = covid$pct_Inst_GQ_CEN_2010,y = log(covid$case_rate))
+abline(lmod2)
+```
+
+### (c)
+```{r}
+set.seed(123)
+B = 1000
+n = nrow(covid)
+beta = c()
+betaint = c()
+sd(log(covid$case_rate))
+for (b in 1:B) {
+  epsilon = rnorm(n,0,sd = sd(log(covid$case_rate)))
+  covid$y = fitted.values(lmod2)+epsilon
+  lmod3 = lm(y~pct_Inst_GQ_CEN_2010,data = covid)
+  beta[b] = lmod3$coefficients[2]
+  betaint[b] = lmod3$coefficients[1]
+}
+mean(beta)
+sqrt(sum((beta-mean(beta))^2)/B)
+quantile(beta,c(0.025,0.975))
+```
+beta_hat is 0.00589
+CI=(0.00373,0.00816)
+estimate of SE of beta is 0.00116
+
+### (d)
+```{r}
+plot(x= covid$pct_Inst_GQ_CEN_2010,y= log(covid$case_rate))
+for (i in 1:B) {
+  abline(a = betaint[i],b=beta[i],col="pink")
+  
+}
+abline(a= mean(betaint),b=mean(beta),col ="red")
+```
+The lines tend to be discrete when the x increase. They are close to the red line (estimate line) uniformly.
+
+### (e)
+
+```{r}
+set.seed(123)
+B = 1000
+n = nrow(covid)
+beta = c()
+betaint = c()
+for (b in 1:B) {
+  s = sample(1:n,n,replace = T)
+  bd = covid[s,]
+  lmod3 = lm(log(case_rate)~pct_Inst_GQ_CEN_2010,data = bd)
+  beta[b] = lmod3$coefficients[2]
+  betaint[b] = lmod3$coefficients[1]
+}
+mean(beta)
+sqrt(sum((beta-mean(beta))^2)/B)
+quantile(beta,c(0.025,0.975))
+
+plot(x= covid$pct_Inst_GQ_CEN_2010,y= log(covid$case_rate))
+for (i in 1:B) {
+  abline(a = betaint[i],b=beta[i],col="pink")
+  
+}
+abline(a= mean(betaint),b=mean(beta),col ="red")
+```
+beta_hat is 0.00589
+CI=(0.00279,0.00890)
+estimate of SE of beta is 0.00154
+
+
+### (f)
+
+The three approaches are similar 0.00588 0.00589 0.00589
+The largest SE and the widest CI for the beta both come from the nonparametric bootstrap. Maybe it is because when the N is large enough, the random error are approximately to the Normal distribution.
+
+## Q4
+
+```{r}
+set.seed(123)
+d1 = data.frame(x1 = rnorm(500),x2 = rnorm(500,1,1),y = 1)
+d2 = data.frame(x1 = rnorm(500,1,1),x2 = rnorm(500),y = 0)
+d = rbind(d1,d2)
+cve = c()
+for (k in 1:100) {
+  
+
+cv5_lst = CVgroup(5,nrow(d),seed = 123)
+cv5err = c()
+for (i in 1:5) {
+  train = d[-cv5_lst[[i]],]
+  test = d[cv5_lst[[i]],]
+  cvknn = knn(train,test,cl = train$y,k = k)
+  cv5err[i] = sum((test$y!=cvknn)^2)
+  
+}
+CV5 = mean(cv5err)
+cve[k] = CV5
+
+}
+plot(1:100,cve,ann = F)
+title(xlab = "k",ylab = "test error")
+```
+I will choose k=1 for the lowest test error.
+The difference is because of the cross validation will decrease the variance compared with Q1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
